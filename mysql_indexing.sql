@@ -1,31 +1,32 @@
 /*==============================================================================
  PROJECT : MySQL Database Indexing and Optimization
  AUTHOR  : Aditi Shirbhate
- PURPOSE : Demonstrate MySQL Optimization Techniques & Execution Plan Analysis
+ PURPOSE : Demonstrate and Document MySQL Performance Optimization Techniques
 ==============================================================================*/
 
 --------------------------------------------------------------------------------
--- STEP 1 : Create and Initialize Database
+-- STEP 1 : Database Setup & Initialization
 --------------------------------------------------------------------------------
 CREATE DATABASE IF NOT EXISTS CollegeDB;
 USE CollegeDB;
 
 --------------------------------------------------------------------------------
--- STEP 2 : Create Student Table with Appropriate Constraints
+-- STEP 2 : Schema Creation with Proper Constraints
 --------------------------------------------------------------------------------
 DROP TABLE IF EXISTS Student;
+
 CREATE TABLE Student (
     student_id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
-    email VARCHAR(100) NOT NULL UNIQUE, -- Added UNIQUE constraint for best practices
+    email VARCHAR(100) NOT NULL UNIQUE, -- Unique constraint automatically builds an internal index
     branch VARCHAR(50) NOT NULL,
     city VARCHAR(50) NOT NULL,
-    age INT CHECK (age >= 18),         -- Added data integrity check constraint
+    age INT NOT NULL,
     cgpa DECIMAL(3,2) NOT NULL
 );
 
 --------------------------------------------------------------------------------
--- STEP 3 : Insert Representative Data Records
+-- STEP 3 : Data Population
 --------------------------------------------------------------------------------
 INSERT INTO Student (name, email, branch, city, age, cgpa)
 VALUES
@@ -37,102 +38,76 @@ VALUES
 ('Priya', 'priya@gmail.com', 'CSE', 'Nagpur', 20, 9.40);
 
 --------------------------------------------------------------------------------
--- STEP 4 : Query Execution Plan BEFORE Indexing
--- ANALYSIS: This query triggers a Full Table Scan (type: ALL) because MySQL 
--- must search every row in the dataset sequentially to match the 'city' column.
+-- STEP 4 : Query Performance Analysis BEFORE Indexing
+-- ANALYSIS: Running EXPLAIN here reveals a type of 'ALL' (Full Table Scan).
+-- Because no index exists on 'city', MySQL must check every row sequentially.
 --------------------------------------------------------------------------------
 EXPLAIN 
-SELECT student_id, name, branch, cgpa 
-FROM Student 
-WHERE city = 'Nagpur';
-
---------------------------------------------------------------------------------
--- STEP 5 : Create Strategic Single-Column & Composite Indexes
---------------------------------------------------------------------------------
--- Single column indexes for high-frequency search filtering
-CREATE INDEX idx_city ON Student(city);
-CREATE INDEX idx_branch ON Student(branch);
-
--- Composite index optimized for multi-conditional filtering on branch & city
-CREATE INDEX idx_branch_city ON Student(branch, city);
-
---------------------------------------------------------------------------------
--- STEP 6 : Verify Newly Created Database Indexes
---------------------------------------------------------------------------------
-SHOW INDEX FROM Student;
-
---------------------------------------------------------------------------------
--- STEP 7 : Query Execution Plan AFTER Indexing
--- ANALYSIS: The optimizer now utilizes the 'idx_city' index (type: ref). 
--- The 'rows' metric drops, drastically reducing the search space and execution cost.
---------------------------------------------------------------------------------
-EXPLAIN 
-SELECT student_id, name, branch, cgpa 
-FROM Student 
-WHERE city = 'Nagpur';
-
---------------------------------------------------------------------------------
--- STEP 8 : Performance Optimization (Avoiding SELECT * / Covering Indexes)
--- ANALYSIS: By selecting only specific required columns rather than using '*', 
--- we minimize network overhead and memory consumption.
---------------------------------------------------------------------------------
 SELECT name, branch, cgpa 
 FROM Student 
 WHERE city = 'Nagpur';
 
 --------------------------------------------------------------------------------
--- STEP 9 : Analyzing Sorting (ORDER BY) Optimization
--- ANALYSIS: Sorting by 'city' can now utilize the 'idx_city' B-Tree structure,
--- eliminating the expensive 'Using filesort' penalty during execution.
+-- STEP 5 : Applying Strategic Indexing Techniques
+--------------------------------------------------------------------------------
+-- Single-column index for frequent point-lookups by geography
+CREATE INDEX idx_city ON Student(city);
+
+-- Composite index optimized specifically for multi-conditional filter queries
+CREATE INDEX idx_branch_city ON Student(branch, city);
+
+--------------------------------------------------------------------------------
+-- STEP 6 : Index Verification
+--------------------------------------------------------------------------------
+SHOW INDEX FROM Student;
+
+--------------------------------------------------------------------------------
+-- STEP 7 : Query Performance Analysis AFTER Indexing
+-- ANALYSIS: Running EXPLAIN now shows a type of 'ref' utilizing 'idx_city'.
+-- The scanned row-count drops dramatically, preventing costly table scans.
 --------------------------------------------------------------------------------
 EXPLAIN 
+SELECT name, branch, cgpa 
+FROM Student 
+WHERE city = 'Nagpur';
+
+--------------------------------------------------------------------------------
+-- STEP 8 : Advanced Queries (Aggregations & Sorting Optimization)
+-- ANALYSIS: Using column lists instead of SELECT * minimizes memory footprint.
+--------------------------------------------------------------------------------
+-- Grouping & Aggregating data with post-filtration
+SELECT branch, COUNT(*) AS TotalStudents, AVG(cgpa) AS AverageCGPA
+FROM Student
+GROUP BY branch
+HAVING AverageCGPA > 8.5;
+
+-- Utilizing existing index structures to optimize sorting operations
 SELECT student_id, name, city 
 FROM Student 
 ORDER BY city;
 
---------------------------------------------------------------------------------
--- STEP 10 : Grouping and Filtering (GROUP BY & HAVING)
---------------------------------------------------------------------------------
-SELECT branch, COUNT(*) AS TotalStudents, AVG(cgpa) AS AverageCGPA
-FROM Student
-GROUP BY branch
-HAVING AVG(cgpa) > 8.5;
-
---------------------------------------------------------------------------------
--- STEP 11 : Top Performing Students (LIMIT Optimization)
---------------------------------------------------------------------------------
-SELECT student_id, name, cgpa 
+-- Optimized row limitation (Top 3 Students)
+SELECT name, cgpa 
 FROM Student 
 ORDER BY cgpa DESC 
 LIMIT 3;
 
 --------------------------------------------------------------------------------
--- STEP 12 : Table Data Maintenance and Statistics Refreshes
+-- STEP 9 : Database Administration & Statistics Refreshes
 --------------------------------------------------------------------------------
--- Re-analyzes key distribution and updates statistics for the query optimizer
+-- Updates the query optimizer's metadata engine with fresh index cardinality
 ANALYZE TABLE Student;
 
--- Defragments data storage and reclaims unused cluster file space
+-- Defragments tablespace allocation to reclaim unused block space
 OPTIMIZE TABLE Student;
 
 --------------------------------------------------------------------------------
--- STEP 13 : Data Manipulation (Updates & Deletes via Indexed Keys)
--- ANALYSIS: Modifications target indexed values or the Primary Key 
--- to ensure execution remains efficient and scoped.
+-- STEP 10 : Efficient Data Modification (DML Best Practices)
+-- ANALYSIS: Updates and deletes target indexed keys to ensure performance safety.
 --------------------------------------------------------------------------------
 UPDATE Student 
 SET cgpa = 9.50 
-WHERE student_id = 1; -- Targeted by Primary Key rather than non-unique Name string
+WHERE student_id = 1;
 
 DELETE FROM Student 
 WHERE student_id = 6;
-
---------------------------------------------------------------------------------
--- STEP 14 : Final Performance Verification via Covering Query
--- ANALYSIS: Utilizing the implicitly generated Primary Key index on 'email' 
--- (due to the UNIQUE constraint) results in a highly efficient point-lookup scan.
---------------------------------------------------------------------------------
-EXPLAIN 
-SELECT student_id, name, email 
-FROM Student 
-WHERE email = 'aditi@gmail.com';
