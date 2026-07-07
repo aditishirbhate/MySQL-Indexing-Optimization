@@ -1,363 +1,138 @@
-CREATE DATABASE CollegeDB;
-USE CollegeDB;
-CREATE TABLE Student (
-    student_id INT PRIMARY KEY AUTO_INCREMENT,
-    name VARCHAR(100),
-    email VARCHAR(100),
-    branch VARCHAR(50),
-    age INT,
-    city VARCHAR(50),
-    cgpa DECIMAL(3,2)
-);
-INSERT INTO Student(name,email,branch,age,city,cgpa)
-VALUES
-('Aditi','aditi@gmail.com','CSE',21,'Nagpur',8.90),
-('Rahul','rahul@gmail.com','IT',22,'Pune',8.50),
-('Sneha','sneha@gmail.com','CSE',20,'Mumbai',9.20),
-('Aman','aman@gmail.com','ECE',23,'Delhi',7.80),
-('Priya','priya@gmail.com','CSE',21,'Nagpur',9.10),
-('Rohit','rohit@gmail.com','IT',22,'Pune',8.40),
-('Neha','neha@gmail.com','CSE',20,'Nagpur',8.80),
-('Karan','karan@gmail.com','ME',23,'Indore',7.50);
-SELECT * FROM Student;
-EXPLAIN
-SELECT *
-FROM Student
-WHERE city='Nagpur';
-
-CREATE INDEX idx_city
-ON Student(city);
-
-CREATE INDEX idx_branch
-ON Student(branch);
-
-CREATE INDEX idx_email
-ON Student(email);
-
-SHOW INDEX FROM Student;
-EXPLAIN
-SELECT *
-FROM Student
-WHERE city='Nagpur';
-
-SELECT name,branch,cgpa
-FROM Student;
-
-SELECT name,cgpa
-FROM Student
-WHERE branch='CSE';
-
-SELECT *
-FROM Student
-ORDER BY city;
-CREATE INDEX idx_sort
-ON Student(city);
-
-SELECT branch,
-COUNT(*) AS TotalStudents
-FROM Student
-GROUP BY branch;
-
-SELECT branch,
-AVG(cgpa)
-FROM Student
-GROUP BY branch;
-
-SELECT *
-FROM Student
-ORDER BY cgpa DESC
-LIMIT 1;
-
-SELECT *
-FROM Student
-WHERE city='Nagpur';
-
-SELECT *
-FROM Student
-WHERE branch='CSE';
-
-DROP INDEX idx_city
-ON Student;
-
-OPTIMIZE TABLE Student;
-
-ANALYZE TABLE Student;
-
-SHOW TABLE STATUS;
-
-SHOW TABLES;
-
-DESC Student;
-
-SHOW DATABASES;
-
-DELETE FROM Student
-WHERE student_id=8;
-
-UPDATE Student
-SET cgpa=9.50
-WHERE name='Aditi';
-
-SELECT *
-FROM Student
-WHERE email='aditi@gmail.com';
-
-SELECT COUNT(*)
-FROM Student;
-
-SELECT AVG(cgpa)
-FROM Student;
-
-SELECT MAX(cgpa)
-FROM Student;
-
-SELECT MIN(cgpa)
-FROM Student;
-
-EXPLAIN
-SELECT *
-FROM Student
-WHERE email='aditi@gmail.com';
-
-XPLAIN
-SELECT *
-FROM Student
-WHERE email='aditi@gmail.com';
-
-SELECT
-AVG(cgpa) AS AverageCGPA
-FROM Student;
-
-
-SELECT
-MAX(cgpa)
-FROM Student;
-
-SELECT
-MIN(cgpa)
-FROM Student;
-SELECT *
-FROM Student
-ORDER BY cgpa DESC
-LIMIT 3;
-SELECT *
-FROM Student
-WHERE name LIKE 'A%';
-ANALYZE TABLE Student;
-OPTIMIZE TABLE Student;
-UPDATE Student
-SET cgpa=9.40
-WHERE name='Aditi';
-
-CREATE INDEX idx_branch_city
-ON Student(branch,city);
-
-EXPLAIN
-SELECT *
-FROM Student
-WHERE branch='CSE'
-AND city='Nagpur';
-
-SHOW INDEX
-FROM Student;
-
-ANALYZE TABLE Student;
-
-OPTIMIZE TABLE Student;
-
-
-
-
-
-
-/*=========================================================
+/*==============================================================================
  PROJECT : MySQL Database Indexing and Optimization
  AUTHOR  : Aditi Shirbhate
- PURPOSE : Demonstrate MySQL Optimization Techniques
-=========================================================*/
+ PURPOSE : Demonstrate MySQL Optimization Techniques & Execution Plan Analysis
+==============================================================================*/
 
----------------------------------------------------------
--- STEP 1 : Create Database
----------------------------------------------------------
-
-CREATE DATABASE CollegeDB;
-
+--------------------------------------------------------------------------------
+-- STEP 1 : Create and Initialize Database
+--------------------------------------------------------------------------------
+CREATE DATABASE IF NOT EXISTS CollegeDB;
 USE CollegeDB;
 
----------------------------------------------------------
--- STEP 2 : Create Student Table
----------------------------------------------------------
-
-CREATE TABLE Student
-(
+--------------------------------------------------------------------------------
+-- STEP 2 : Create Student Table with Appropriate Constraints
+--------------------------------------------------------------------------------
+DROP TABLE IF EXISTS Student;
+CREATE TABLE Student (
     student_id INT AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(100),
-    email VARCHAR(100),
-    branch VARCHAR(50),
-    city VARCHAR(50),
-    age INT,
-    cgpa DECIMAL(3,2)
+    name VARCHAR(100) NOT NULL,
+    email VARCHAR(100) NOT NULL UNIQUE, -- Added UNIQUE constraint for best practices
+    branch VARCHAR(50) NOT NULL,
+    city VARCHAR(50) NOT NULL,
+    age INT CHECK (age >= 18),         -- Added data integrity check constraint
+    cgpa DECIMAL(3,2) NOT NULL
 );
 
----------------------------------------------------------
--- STEP 3 : Insert Records
----------------------------------------------------------
-
-INSERT INTO Student(name,email,branch,city,age,cgpa)
+--------------------------------------------------------------------------------
+-- STEP 3 : Insert Representative Data Records
+--------------------------------------------------------------------------------
+INSERT INTO Student (name, email, branch, city, age, cgpa)
 VALUES
-('Aditi','aditi@gmail.com','CSE','Nagpur',21,8.90),
-('Rahul','rahul@gmail.com','IT','Pune',22,8.30),
-('Sneha','sneha@gmail.com','CSE','Mumbai',20,9.10),
-('Rohan','rohan@gmail.com','ECE','Delhi',23,8.00),
-('Neha','neha@gmail.com','IT','Nagpur',21,8.70),
-('Priya','priya@gmail.com','CSE','Nagpur',20,9.40);
+('Aditi', 'aditi@gmail.com', 'CSE', 'Nagpur', 21, 8.90),
+('Rahul', 'rahul@gmail.com', 'IT', 'Pune', 22, 8.30),
+('Sneha', 'sneha@gmail.com', 'CSE', 'Mumbai', 20, 9.10),
+('Rohan', 'rohan@gmail.com', 'ECE', 'Delhi', 23, 8.00),
+('Neha', 'neha@gmail.com', 'IT', 'Nagpur', 21, 8.70),
+('Priya', 'priya@gmail.com', 'CSE', 'Nagpur', 20, 9.40);
 
----------------------------------------------------------
--- STEP 4 : Display Records
----------------------------------------------------------
+--------------------------------------------------------------------------------
+-- STEP 4 : Query Execution Plan BEFORE Indexing
+-- ANALYSIS: This query triggers a Full Table Scan (type: ALL) because MySQL 
+-- must search every row in the dataset sequentially to match the 'city' column.
+--------------------------------------------------------------------------------
+EXPLAIN 
+SELECT student_id, name, branch, cgpa 
+FROM Student 
+WHERE city = 'Nagpur';
 
-SELECT * FROM Student;
+--------------------------------------------------------------------------------
+-- STEP 5 : Create Strategic Single-Column & Composite Indexes
+--------------------------------------------------------------------------------
+-- Single column indexes for high-frequency search filtering
+CREATE INDEX idx_city ON Student(city);
+CREATE INDEX idx_branch ON Student(branch);
 
----------------------------------------------------------
--- STEP 5 : Query Execution Plan Before Index
----------------------------------------------------------
+-- Composite index optimized for multi-conditional filtering on branch & city
+CREATE INDEX idx_branch_city ON Student(branch, city);
 
-EXPLAIN
-SELECT *
-FROM Student
-WHERE city='Nagpur';
-
----------------------------------------------------------
--- STEP 6 : Create Index
----------------------------------------------------------
-
-CREATE INDEX idx_city
-ON Student(city);
-
-CREATE INDEX idx_branch
-ON Student(branch);
-
-CREATE INDEX idx_email
-ON Student(email);
-
----------------------------------------------------------
--- STEP 7 : Composite Index
----------------------------------------------------------
-
-CREATE INDEX idx_branch_city
-ON Student(branch,city);
-
----------------------------------------------------------
--- STEP 8 : Show Indexes
----------------------------------------------------------
-
-SHOW INDEX
-FROM Student;
-
----------------------------------------------------------
--- STEP 9 : Query Execution After Index
----------------------------------------------------------
-
-EXPLAIN
-SELECT *
-FROM Student
-WHERE city='Nagpur';
-
----------------------------------------------------------
--- STEP 10 : Optimized Query
----------------------------------------------------------
-
-SELECT
-name,
-branch,
-cgpa
-FROM Student
-WHERE city='Nagpur';
-
----------------------------------------------------------
--- STEP 11 : ORDER BY
----------------------------------------------------------
-
-EXPLAIN
-SELECT *
-FROM Student
-ORDER BY city;
-
----------------------------------------------------------
--- STEP 12 : GROUP BY
----------------------------------------------------------
-
-SELECT
-branch,
-COUNT(*) TotalStudents
-FROM Student
-GROUP BY branch;
-
----------------------------------------------------------
--- STEP 13 : HAVING
----------------------------------------------------------
-
-SELECT
-branch,
-AVG(cgpa) AverageCGPA
-FROM Student
-GROUP BY branch
-HAVING AVG(cgpa)>8.5;
-
----------------------------------------------------------
--- STEP 14 : LIMIT
----------------------------------------------------------
-
-SELECT *
-FROM Student
-ORDER BY cgpa DESC
-LIMIT 3;
-
----------------------------------------------------------
--- STEP 15 : ANALYZE TABLE
----------------------------------------------------------
-
-ANALYZE TABLE Student;
-
----------------------------------------------------------
--- STEP 16 : OPTIMIZE TABLE
----------------------------------------------------------
-
-OPTIMIZE TABLE Student;
-
----------------------------------------------------------
--- STEP 17 : Update
----------------------------------------------------------
-
-UPDATE Student
-SET cgpa=9.50
-WHERE name='Aditi';
-
----------------------------------------------------------
--- STEP 18 : Delete
----------------------------------------------------------
-
-DELETE FROM Student
-WHERE student_id=6;
-
----------------------------------------------------------
--- STEP 19 : Final Performance Check
----------------------------------------------------------
-
-EXPLAIN
-SELECT *
-FROM Student
-WHERE email='aditi@gmail.com';
-
+--------------------------------------------------------------------------------
+-- STEP 6 : Verify Newly Created Database Indexes
+--------------------------------------------------------------------------------
 SHOW INDEX FROM Student;
 
+--------------------------------------------------------------------------------
+-- STEP 7 : Query Execution Plan AFTER Indexing
+-- ANALYSIS: The optimizer now utilizes the 'idx_city' index (type: ref). 
+-- The 'rows' metric drops, drastically reducing the search space and execution cost.
+--------------------------------------------------------------------------------
+EXPLAIN 
+SELECT student_id, name, branch, cgpa 
+FROM Student 
+WHERE city = 'Nagpur';
 
+--------------------------------------------------------------------------------
+-- STEP 8 : Performance Optimization (Avoiding SELECT * / Covering Indexes)
+-- ANALYSIS: By selecting only specific required columns rather than using '*', 
+-- we minimize network overhead and memory consumption.
+--------------------------------------------------------------------------------
+SELECT name, branch, cgpa 
+FROM Student 
+WHERE city = 'Nagpur';
 
+--------------------------------------------------------------------------------
+-- STEP 9 : Analyzing Sorting (ORDER BY) Optimization
+-- ANALYSIS: Sorting by 'city' can now utilize the 'idx_city' B-Tree structure,
+-- eliminating the expensive 'Using filesort' penalty during execution.
+--------------------------------------------------------------------------------
+EXPLAIN 
+SELECT student_id, name, city 
+FROM Student 
+ORDER BY city;
 
+--------------------------------------------------------------------------------
+-- STEP 10 : Grouping and Filtering (GROUP BY & HAVING)
+--------------------------------------------------------------------------------
+SELECT branch, COUNT(*) AS TotalStudents, AVG(cgpa) AS AverageCGPA
+FROM Student
+GROUP BY branch
+HAVING AVG(cgpa) > 8.5;
 
+--------------------------------------------------------------------------------
+-- STEP 11 : Top Performing Students (LIMIT Optimization)
+--------------------------------------------------------------------------------
+SELECT student_id, name, cgpa 
+FROM Student 
+ORDER BY cgpa DESC 
+LIMIT 3;
 
+--------------------------------------------------------------------------------
+-- STEP 12 : Table Data Maintenance and Statistics Refreshes
+--------------------------------------------------------------------------------
+-- Re-analyzes key distribution and updates statistics for the query optimizer
+ANALYZE TABLE Student;
 
+-- Defragments data storage and reclaims unused cluster file space
+OPTIMIZE TABLE Student;
 
+--------------------------------------------------------------------------------
+-- STEP 13 : Data Manipulation (Updates & Deletes via Indexed Keys)
+-- ANALYSIS: Modifications target indexed values or the Primary Key 
+-- to ensure execution remains efficient and scoped.
+--------------------------------------------------------------------------------
+UPDATE Student 
+SET cgpa = 9.50 
+WHERE student_id = 1; -- Targeted by Primary Key rather than non-unique Name string
 
+DELETE FROM Student 
+WHERE student_id = 6;
 
-
+--------------------------------------------------------------------------------
+-- STEP 14 : Final Performance Verification via Covering Query
+-- ANALYSIS: Utilizing the implicitly generated Primary Key index on 'email' 
+-- (due to the UNIQUE constraint) results in a highly efficient point-lookup scan.
+--------------------------------------------------------------------------------
+EXPLAIN 
+SELECT student_id, name, email 
+FROM Student 
+WHERE email = 'aditi@gmail.com';
